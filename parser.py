@@ -54,6 +54,7 @@ Access_Flags = {
     0x8000 : 'NOT DEFINED',
     0x10000 : 'ACC_CONSTRUCTOR',
     0x10001 : 'PUBLIC_CONSTRUCTOR',
+    0x10008 : 'STATIC_CONSTRUCTOR',
     0x20000 : 'ACC_DECLARED_SYNCHRONIZED'
 }
 
@@ -398,6 +399,21 @@ class DexParser:
         self.console.print("") 
         file.close()
 
+    def extractInterfaces(self,offset,TypeArr):
+
+        file = open(self.filepath,"rb")
+        file.seek(offset)
+
+        i = []
+
+        size = struct.unpack('I',file.read(4))[0]
+
+        for _ in range(size):
+            val = struct.unpack('I',file.read(4))[0]
+            i.append(TypeArr[val])
+        
+        return " , ".join(j for j in i)
+
     def DexClass(self):
         self.f.seek(self.Class_Def_Offset, 0)
 
@@ -420,6 +436,7 @@ class DexParser:
             class_table.add_row("Access Flags", Access_Flags[access_flags])
             class_table.add_row("Superclass", self.TypeArr[superclass_idx])
             class_table.add_row("Source File", self.strArr[source_file_idx])
+            class_table.add_row("Interfaces","No interfaces" if interfaces_off == 0 else self.extractInterfaces(interfaces_off,self.TypeArr))
             
             self.console.print(class_table)
 
