@@ -1,5 +1,6 @@
 import os
 import struct
+import InstructionsHelper
 from hashlib import sha1
 from icecream import ic
 from argparse import ArgumentParser
@@ -350,14 +351,59 @@ class DexParser:
 
         return result
 
+    def DumpDexCode(self, method_name, access_specifier, code_offset):
+        file = open(self.filepath, 'rb')
+        file.seek(code_offset, 0)
+
+        register_size = struct.unpack('H', file.read(2))[0]
+        ins_size = struct.unpack('H', file.read(2))[0]
+        outs_size = struct.unpack('H', file.read(2))[0]
+        tries_size = struct.unpack('H', file.read(2))[0]
+        debug_info_off = struct.unpack('I', file.read(4))[0]
+        insns_size = struct.unpack('I', file.read(4))[0]
+
+        header_table = Table(show_header=True, header_style="bold magenta", title="Method Information")
+        header_table.add_column("Property")
+        header_table.add_column("Value")
+
+        header_table.add_row("Method Name", method_name)
+        header_table.add_row("Access Flags", access_specifier)
+        header_table.add_row("Registers", str(register_size))
+        header_table.add_row("Ins Size", str(ins_size))
+        header_table.add_row("Outs Size", str(outs_size))
+        header_table.add_row("Tries Size", str(tries_size))
+        header_table.add_row("Debug Offset", hex(debug_info_off))
+
+        if insns_size == 0:
+            insns = []
+        else:
+            i = insns_size * 2
+            insn = file.read(i).hex()
+            insns = InstructionsHelper.parseInstructions(insn, insns_size, self.TypeArr, 
+                                                    self.FieldName, self.MethodName, 
+                                                    self.strArr, self.ProtoDesc)
+
+        inst_table = Table(show_header=True, header_style="bold cyan", title=f"Instructions ({insns_size} units)")
+        inst_table.add_column("Offset", justify="right", style="#f9caa7")
+        inst_table.add_column("Hex", style="#f37736")
+        inst_table.add_column("Assembly", style="#88d8b0")
+
+        offset = 0
+        for instruction, bytes_consumed in insns:
+            inst_table.add_row(hex(offset)[2:].zfill(4),insn[offset:offset + bytes_consumed],instruction)
+            offset += bytes_consumed
+
+        self.console.print(header_table)
+        self.console.print(inst_table)
+        self.console.print("") 
+        file.close()
+
     def DexClass(self):
-        
         self.f.seek(self.Class_Def_Offset, 0)
 
         for i in range(self.Class_Def_Size):
-
             class_idx = struct.unpack('I', self.f.read(4))[0]
-            access_flags_key = struct.unpack('I', self.f.read(4))[0]
+            access_flags = struct.unpack('I', self.f.read(4))[0]
             superclass_idx = struct.unpack('I', self.f.read(4))[0]
             interfaces_off = struct.unpack('I', self.f.read(4))[0]
             source_file_idx = struct.unpack('I', self.f.read(4))[0]
@@ -365,69 +411,79 @@ class DexParser:
             class_data_off = struct.unpack('I', self.f.read(4))[0]
             static_values_off = struct.unpack('I', self.f.read(4))[0]
 
-            dex_class = self.TypeArr[class_idx]
-            access_flags = Access_Flags[access_flags_key]
-            superclass = self.TypeArr[superclass_idx]
-            source_file = self.strArr[source_file_idx]
+            self.console.print(f"\n[#ffcc5c]Class #{i + 1}")
+            class_table = Table(show_header=True, header_style="bold magenta")
+            class_table.add_column("Property",style="#7bc043")
+            class_table.add_column("Value",style="#ff8b94")
 
-            self.console.print(f"[bold cyan][+]Class {i+1}")
+            class_table.add_row("Class Name", self.TypeArr[class_idx])
+            class_table.add_row("Access Flags", Access_Flags[access_flags])
+            class_table.add_row("Superclass", self.TypeArr[superclass_idx])
+            class_table.add_row("Source File", self.strArr[source_file_idx])
+            
+            self.console.print(class_table)
 
-            ic(dex_class,access_flags,superclass,interfaces_off,source_file,annotations_off,class_data_off,static_values_off)
+            if class_data_off == 0:
+                self.console.print("[yellow]No class data")
+                continue
 
             self.f.seek(class_data_off, 0)
 
-            static_field_size = self.read_unsigned_leb128(self.f)
-            instance_field_size = self.read_unsigned_leb128(self.f)
-            direct_method_size = self.read_unsigned_leb128(self.f)
-            virtual_method_size = self.read_unsigned_leb128(self.f)
+            static_fields_size = self.read_unsigned_leb128(self.f)
+            instance_fields_size = self.read_unsigned_leb128(self.f)
+            direct_methods_size = self.read_unsigned_leb128(self.f)
+            virtual_methods_size = self.read_unsigned_leb128(self.f)
 
-            self.console.print("\t[magenta]Static Fields")
+            if static_fields_size > 0:
+                self.console.print("\n[#ffffff]Static Fields")
+                fields_table = Table(show_header=True, header_style="bold magenta")
+                fields_table.add_column("Name")
+                fields_table.add_column("Access Flags")
 
-            for _ in range(static_field_size):
-                field_idx_diff = self.read_unsigned_leb128(self.f)
-                access_flags = self.read_unsigned_leb128(self.f)
-                self.console.print(f"\t\t[yellow]Name: {self.FieldName[field_idx_diff]}")
-                self.console.print(f"\t\t[yellow]Access Specifier: {Access_Flags[access_flags]}")
+                for _ in range(static_fields_size):
+                    field_idx = self.read_unsigned_leb128(self.f)
+                    access_flags = self.read_unsigned_leb128(self.f)
+                    fields_table.add_row(self.FieldName[field_idx],Access_Flags[access_flags])
 
-            self.console.print("\t[magenta]Instance Fields")
+                self.console.print(fields_table)
 
-            for _ in range(instance_field_size):
-                field_idx_diff = self.read_unsigned_leb128(self.f)
-                access_flags = self.read_unsigned_leb128(self.f)
-                self.console.print(f"\t\t[yellow]Name: {self.FieldName[field_idx_diff]}")
-                self.console.print(f"\t\t[yellow]Access Specifier: {Access_Flags[access_flags]}")
+            if instance_fields_size > 0:
+                self.console.print("\n[#ffffff]Instance Fields")
+                fields_table = Table(show_header=True, header_style="bold magenta")
+                fields_table.add_column("Name")
+                fields_table.add_column("Access Flags")
 
-            
-            self.console.print("\t[magenta]Direct Method")
+                for _ in range(instance_fields_size):
+                    field_idx = self.read_unsigned_leb128(self.f)
+                    access_flags = self.read_unsigned_leb128(self.f)
+                    fields_table.add_row(self.FieldName[field_idx],Access_Flags[access_flags])
+                self.console.print(fields_table)
 
-            previous_method_index = 0
-            for _ in range(direct_method_size):
-                method_idx_diff = self.read_unsigned_leb128(self.f)
-                access_flags = self.read_unsigned_leb128(self.f)
-                code_offset = self.read_unsigned_leb128(self.f)
+            if direct_methods_size > 0:
+                self.console.print("\n[#ffffff]Direct Methods")
+                previous_idx = 0
+                for _ in range(direct_methods_size):
+                    method_idx_diff = self.read_unsigned_leb128(self.f)
+                    access_flags = self.read_unsigned_leb128(self.f)
+                    code_off = self.read_unsigned_leb128(self.f)
+                    
+                    method_idx = previous_idx + method_idx_diff
+                    previous_idx = method_idx
+                    
+                    self.DumpDexCode(self.MethodName[method_idx],Access_Flags[access_flags],code_off)
 
-                method_index = previous_method_index + method_idx_diff
-                previous_method_index = method_index
-
-                self.console.print(f"\t\t[yellow]Method Name: {self.MethodName[method_idx_diff]}")
-                self.console.print(f"\t\t[yellow]Access Specifier: {Access_Flags[access_flags]}")
-                self.console.print(f"\t\t[yellow]Code Offset: {code_offset}")
-
-            self.console.print("\t[magenta]Virtual Method")
-
-            previous_method_index = 0
-            for _ in range(virtual_method_size):
-                method_idx_diff = self.read_unsigned_leb128(self.f)
-                access_flags = self.read_unsigned_leb128(self.f)
-                code_offset = self.read_unsigned_leb128(self.f)
-
-                method_index = previous_method_index + method_idx_diff
-                previous_method_index = method_index  
-
-                self.console.print(f"\t\t[yellow]Method Name: {self.MethodName[method_index]}")
-                self.console.print(f"\t\t[yellow]Access Specifier: {Access_Flags[access_flags]}")
-                self.console.print(f"\t\t[yellow]Code Offset: {code_offset}")
-
+            if virtual_methods_size > 0:
+                self.console.print("\n[#ffffff]Virtual Methods")
+                previous_idx = 0
+                for _ in range(virtual_methods_size):
+                    method_idx_diff = self.read_unsigned_leb128(self.f)
+                    access_flags = self.read_unsigned_leb128(self.f)
+                    code_off = self.read_unsigned_leb128(self.f)
+                    
+                    method_idx = previous_idx + method_idx_diff
+                    previous_idx = method_idx
+                    self.DumpDexCode(self.MethodName[method_idx],Access_Flags[access_flags],code_off)
+   
 def dexParser(filepath):
     dex = DexParser(filepath)
     dex.header_parse()

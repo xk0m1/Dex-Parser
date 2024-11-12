@@ -13,7 +13,4 @@ python3 parser.py -h
 ![Screenshot2](img/img2.png)
 ![Screenshot3](img/img3.png)
 ![Screenshot4](img/img4.png)
-
-### Further Improvements
-
-- Need to parse Instructions of each method. 
+![Screenshot5](img/img5.png)
