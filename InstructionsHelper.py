@@ -249,7 +249,7 @@ def identifyOpcode(opcode):
     if opcode == 0xf7: return '10x', 'unused'
     if opcode == 0xf8: return '10x', 'unused'
     if opcode == 0xf9: return '10x', 'unused'
-    if opcode == 0xfa: return '45cc', 'invoke-polymorphic {vC, vD, vE, vF, vG}, meth@BBBB, proto@HHHH'
+    if opcode == 0xfa: return '45cc', 'invoke-polymorphic '
     if opcode == 0xfb: return '4rcc', 'invoke-polymorphic/range {vCCCC .. vNNNN}, meth@BBBB, proto@HHHH'
     if opcode == 0xfc: return '35c', 'invoke-custom '
     if opcode == 0xfd: return '3rc', 'invoke-custom/range {vCCCC .. vNNNN}, call_site@BBBB'
@@ -431,9 +431,6 @@ def instructionUtil(ins,offset,TypeArr,FieldArr,MethodArr,StrArr,ProtoArr):
         syntax = f'{syntax} //{val}'
         return syntax , 8
 
-    elif format == '22cs':
-        pass 
-
     elif format == '30t':
         AAAAlo = int(ins[offset+4:offset+8],16)
         AAAAhi = int(ins[offset+8:offset+12],16)
@@ -514,7 +511,30 @@ def instructionUtil(ins,offset,TypeArr,FieldArr,MethodArr,StrArr,ProtoArr):
     elif format in ('35ms', '35mi','3rc','3rms','3rmi'):
         return syntax , 12
     
-    elif format in ('45cc','4rcc'):
+    elif format == '45cc':
+        A = int(ins[offset+2:offset+3],16)
+        G = int(ins[offset+3:offset+4],16)
+        BBBB = int(ins[offset+6:offset+8]+ins[offset+4:offset+6],16)
+        F = int(ins[offset+8:offset+9],16)
+        E = int(ins[offset+9:offset+10],16)
+        D = int(ins[offset+10:offset+11],16)
+        C = int(ins[offset+11:offset+12],16)
+        HHHH = int(ins[offset+14:offset+16]+ins[offset+12:offset+14],16)
+
+        if A == 1:
+            s = f'(v{C}), meth@{BBBB}, proto@{HHHH}  // Method={MethodArr[BBBB]} , Proto={ProtoArr[HHHH]}'
+        elif A == 2:
+            s = f'(v{C},v{D}), meth@{BBBB}, proto@{HHHH}  // Method={MethodArr[BBBB]} , Proto={ProtoArr[HHHH]}'
+        elif A == 3:
+            s = f'(v{C},v{D},v{E}), meth@{BBBB}, proto@{HHHH}  // Method={MethodArr[BBBB]} , Proto={ProtoArr[HHHH]}'
+        elif A == 4:
+            s = f'(v{C},v{D},v{E},v{F}), meth@{BBBB}, proto@{HHHH}  // Method={MethodArr[BBBB]} , Proto={ProtoArr[HHHH]}'
+        elif A == 5:
+            s = f'(v{C},v{D},v{E},v{F},v{G}), meth@{BBBB}, proto@{HHHH}  // Method={MethodArr[BBBB]} , Proto={ProtoArr[HHHH]}'
+
+        return syntax + s , 16
+    
+    elif format  == '4rcc':
         return syntax , 16
     
     return syntax , 20
