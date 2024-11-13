@@ -1,7 +1,6 @@
 import os
 import struct
 import InstructionsHelper
-from hashlib import sha1
 from icecream import ic
 from argparse import ArgumentParser
 from rich.console import Console
@@ -39,6 +38,8 @@ Access_Flags = {
     0x9 : 'PUBLIC_STATIC',
     0xa : 'PRIVATE_STATIC',
     0x10 : 'ACC_FINAL',
+    0x11 : 'PUBLIC_FINAL',
+    0x19 : 'PUBLIC_STATIC_FINAL',
     0x20 : 'ACC_SYNCHRONIZED',
     0x40 : 'ACC_VOLATILE',
     0x40 : 'ACC_BRIDGE',
@@ -76,7 +77,7 @@ class DexParser:
         self.Checksum = struct.unpack('<I',self.f.read(4))[0]
         #ic(self.Checksum)
         self.f.seek(12,0)
-        self.Signature = sha1(struct.unpack('20s',self.f.read(20))[0]).hexdigest()
+        self.Signature = str(struct.unpack('20s',self.f.read(20))[0].hex())
         #ic(self.Signature)
         self.f.seek(32,0)
         self.FileSize = struct.unpack('I',self.f.read(4))[0]
@@ -417,9 +418,9 @@ class DexParser:
         return " , ".join(j for j in i)
 
     def DexClass(self):
-        self.f.seek(self.Class_Def_Offset, 0)
 
         for i in range(self.Class_Def_Size):
+            self.f.seek(self.Class_Def_Offset + (i * 32), 0)
             class_idx = struct.unpack('I', self.f.read(4))[0]
             access_flags = struct.unpack('I', self.f.read(4))[0]
             superclass_idx = struct.unpack('I', self.f.read(4))[0]
