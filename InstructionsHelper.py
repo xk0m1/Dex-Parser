@@ -508,8 +508,20 @@ def instructionUtil(ins,offset,TypeArr,FieldArr,MethodArr,StrArr,ProtoArr):
 
         return syntax+s , 12
     
-    elif format in ('35ms', '35mi','3rc','3rms','3rmi'):
-        return syntax , 12
+    elif format == '3rc':
+        AA = int(ins[offset+2:offset+4],16)
+        BBBB = int(ins[offset+6:offset+8]+ins[offset+4:offset+6],16)
+        CCCC = int(ins[offset+10:offset+12]+ins[offset+8:offset+10],16)
+        NNNN = CCCC + AA - 1
+
+        if opcode == 0x25:
+            val = TypeArr[BBBB]
+            syntax = f'{syntax} // {val}'
+        elif 0x74 <= opcode <= 0x78:
+            val = MethodArr[BBBB]
+            syntax = f'{syntax} // {val}'
+        
+        return syntax.replace('vCCCC',f'v{CCCC}').replace('vNNNN',f'v{NNNN}').replace('BBBB',f'{BBBB}') , 12
     
     elif format == '45cc':
         A = int(ins[offset+2:offset+3],16)
@@ -535,7 +547,14 @@ def instructionUtil(ins,offset,TypeArr,FieldArr,MethodArr,StrArr,ProtoArr):
         return syntax + s , 16
     
     elif format  == '4rcc':
-        return syntax , 16
+        AA = int(ins[offset+2:offset+4],16)
+        BBBB = int(ins[offset+6:offset+8]+ins[offset+4:offset+6],16)
+        CCCC = int(ins[offset+10:offset+12]+ins[offset+8:offset+10],16)
+        HHHH = int(ins[offset+14:offset+16]+ins[offset+12:offset+14],16)
+        NNNN = CCCC + AA - 1
+        syntax = f'{syntax} // Method={MethodArr[BBBB]} , Proto={ProtoArr[HHHH]}'
+
+        return syntax.replace('vCCCC',f'v{CCCC}').replace('vNNNN',f'v{NNNN}').replace('meth@BBBB',f'meth@{BBBB}').replace('proto@HHHH',f'proto@{HHHH}') , 16
     
     return syntax , 20
 

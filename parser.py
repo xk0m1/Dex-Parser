@@ -411,6 +411,8 @@ class DexParser:
         for _ in range(size):
             val = struct.unpack('I',file.read(4))[0]
             i.append(TypeArr[val])
+
+        file.close()
         
         return " , ".join(j for j in i)
 
